@@ -1,0 +1,29 @@
+{
+  "_comment": "Fixed structural query bank for the Case Content Retrieval API. The two sentinels __A_DESCRIPTION__ and __B_DESCRIPTION__ are replaced at run time by the case's A_description / B_description so we fetch segments about each party. These queries mirror the canonical section structure of a Vietnamese first-instance civil judgment (đơn khởi kiện -> bị đơn trình bày -> người liên quan -> chứng cứ -> định giá -> phiên tòa -> tranh luận -> ý kiến VKS), maximising distinct-segment coverage per API call.",
+  "party_slots": ["__A_DESCRIPTION__", "__B_DESCRIPTION__"],
+  "structural_queries": [
+    "Tại đơn khởi kiện nguyên đơn trình bày yêu cầu",
+    "quá trình giải quyết người khởi kiện nêu nguồn gốc tranh chấp",
+    "nay nguyên đơn đề nghị Tòa án buộc bị đơn thực hiện nghĩa vụ",
+    "bị đơn trình bày tại bản tự khai không đồng ý yêu cầu",
+    "ý kiến phản hồi của bên bị kiện về nội dung khởi kiện",
+    "bị đơn xác nhận một phần nhưng không chấp nhận trách nhiệm",
+    "người có quyền lợi nghĩa vụ liên quan trình bày quan điểm",
+    "người liên quan có yêu cầu độc lập đề nghị Tòa án giải quyết",
+    "đương sự liên quan thống nhất hoặc không đồng ý với các bên",
+    "chứng cứ tài liệu giao nộp cho Tòa án trong vụ án",
+    "người làm chứng trình bày xác nhận sự việc nguồn gốc tài sản",
+    "biên bản định giá thẩm định giấy chứng nhận hợp đồng tài liệu",
+    "tại phiên tòa nguyên đơn giữ nguyên thay đổi rút yêu cầu",
+    "luật sư người bảo vệ quyền lợi trình bày quan điểm tranh luận",
+    "các bên thống nhất giá trị tài sản không đồng ý yêu cầu độc lập",
+    "đại diện phát biểu ý kiến về tố tụng nội dung",
+    "Kiểm sát viên đề nghị Hội đồng xét xử chấp nhận bác yêu cầu",
+    "Viện kiểm sát đề xuất hướng giải quyết án phí chi phí tố tụng"
+  ],
+  "vks_focus_queries": [
+    "Kiểm sát viên đề nghị Hội đồng xét xử chấp nhận một phần yêu cầu khởi kiện của nguyên đơn",
+    "Viện kiểm sát đề nghị bác toàn bộ yêu cầu khởi kiện của nguyên đơn",
+    "ý kiến của đại diện Viện kiểm sát về việc giải quyết vụ án buộc bị đơn bồi thường"
+  ]
+}

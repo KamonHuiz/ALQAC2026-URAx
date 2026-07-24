@@ -1,0 +1,108 @@
+# ============================================================
+#  URAx-LACE — default configuration
+#  Every knob the pipeline reads lives here. Override any field
+#  from the Colab notebook (see notebooks/ALQAC2026_Colab.ipynb)
+#  or with a *.local.yaml passed via --config.
+# ============================================================
+
+run:
+  run_id: null            # null -> auto timestamp (e.g. 2026-07-24_1830). Set to resume a run.
+  seed: 20260724
+  # Where everything is read from / written to. On Colab this is your mounted Drive.
+  drive_root: "/content/drive/MyDrive/ALQAC_RESULT"
+  # Which split to process end-to-end and produce a submission for.
+  #   "private" -> the 60-case final test (needs test_file present in Drive input)
+  #   "public"  -> the 50-case labelled set (validation / dry-run, uses bundled file)
+  target_split: "private"
+  group_name: "URAx"      # used for the "[submission] YOUR_GROUP_NAME" file name
+
+data:
+  # Bundled with the repo (small). Absolute paths are resolved against repo root if relative.
+  public_test_file: "data/ALQAC2026_public_test.json"
+  public_corpus_file: "data/corpus_law_pub.json"
+  private_corpus_file: "data/private_test_60_cases_extracted_corpus.json"
+  law_name_map_file: "data/law_name_map.json"
+  query_bank_file: "data/query_bank.json"
+  # The 60 private CASES (case_id, case_query, A/B_description). NOT bundled — you download it
+  # from the organisers' "Private Test Folder" into Drive. Auto-detected if left null:
+  # the pipeline scans <drive_root>/input/ for a *.json whose items contain 'case_query'.
+  private_test_file: null
+
+model:
+  # Any open-weight instruct model < 10B params. Qwen3-8B is the tuned default.
+  # Alternatives (just change the string): "Qwen/Qwen3-8B", "Qwen/Qwen2.5-7B-Instruct",
+  #   "SeaLLMs/SeaLLMs-v3-7B-Chat" (VN-specialised), "google/gemma-2-9b-it".
+  name: "Qwen/Qwen3-8B"
+  backend: "vllm"         # "vllm" (fast, default) | "hf" (transformers fallback)
+  dtype: "bfloat16"
+  max_model_len: 16384
+  gpu_memory_utilization: 0.90
+  enable_thinking: true    # Qwen3 chain-of-thought <think> mode for reasoning stages
+  tensor_parallel_size: 1
+  # sampling
+  temperature: 0.6
+  top_p: 0.9
+  max_new_tokens: 2048
+
+embedder:
+  name: "BAAI/bge-m3"      # multilingual dense retriever (excellent Vietnamese)
+  batch_size: 16
+  max_length: 1024
+
+# ---- Stage 1: economical agentic evidence retrieval ----
+retrieval:
+  api_url: "https://alqac-api.ngrok.pro/retrieve"
+  use_api: true                     # true: call the API (required for private). false:
+                                    #   offline mode — evidence taken from case_fact (only
+                                    #   works for the labelled public split; case_evidence empty)
+  wait_seconds: 5.2                 # rate limit is 1 req / 5s; small margin
+  max_retries: 5
+  timeout: 30
+  use_query_bank: true              # the 18 structural + party queries
+  use_generated_queries: true       # LLM proposes case-specific queries
+  num_generated_queries: 12
+  # Saturation early-stop: stop issuing more queries once we get `patience`
+  # consecutive calls with no NEW chunk. Keeps c_i low -> API-efficiency E_i = 1.
+  saturation_patience: 4
+  max_calls_per_case: 40            # hard budget ceiling per case
+  submit_all_cached_chunks: true    # case_evidence has no precision penalty -> dump all
+
+# ---- Stage 2: structured case understanding ----
+understanding:
+  enabled: true
+  max_context_chars: 12000          # cap segment text fed to the LLM (speed)
+  extract_vks_stance: true
+
+# ---- Stage 3: outcome prediction ----
+outcome:
+  use_precedents: true              # case-based reasoning over labelled public set
+  num_precedents: 4
+  use_debate: true                  # dual-advocate (A vs B) + adjudicator
+  self_consistency_samples: 5       # majority vote over N sampled reasoning paths
+  use_vks_fusion: true              # fuse prosecutor recommendation as a strong prior
+  vks_prior_weight: 0.5             # 0..1 how strongly VKS stance overrides the LLM vote
+  # base rates from the public set, used only to break ties / calibrate
+  class_prior: {A_WIN: 0.32, PARTIAL_A_WIN: 0.38, B_WIN: 0.20, PARTIAL_B_WIN: 0.10}
+
+# ---- Stage 4: law provision retrieval ----
+law:
+  enabled: true
+  use_citation_extraction: true     # regex "Điều N ... <luật>" from retrieved segments
+  use_semantic_retrieval: true      # bge-m3 + BM25 hybrid over corpus articles
+  semantic_top_k: 12
+  bm25_top_k: 12
+  llm_rerank: true                  # LLM prunes candidates to the precise F1-optimal set
+  max_articles: 8                   # cap submitted articles per case (precision guard)
+  use_procedural_priors: true       # near-ubiquitous BLTTDS + án phí articles
+  procedural_prior:                 # (law_id, article_number) frequently cited in civil cases
+    - ["92/2015/QH13", 147]         # án phí / chi phí tố tụng
+    - ["92/2015/QH13", 228]         # xét xử vắng mặt
+    - ["92/2015/QH13", 273]         # thời hạn kháng cáo
+    - ["92/2015/QH13", 271]         # người có quyền kháng cáo
+    - ["326/2016/UBTVQH14", 26]     # mức án phí dân sự sơ thẩm (index within NQ326 corpus)
+
+# ---- Execution ----
+exec:
+  checkpoint_every_case: true       # write per-case state to Drive (resumable)
+  batch_llm: true                   # batch prompts across cases for throughput
+  log_level: "INFO"

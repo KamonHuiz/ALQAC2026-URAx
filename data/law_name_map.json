@@ -1,0 +1,30 @@
+{
+  "_comment": "Maps free-text Vietnamese law names (as they appear in judgments / related_law_provisions) to the corpus law_id. Matching (implemented in src/alqac/data.py) is: (1) if an explicit code like '91/2015/QH13' or '326/2016' appears in the citation string -> match directly; (2) else normalise (lowercase, strip diacritics) and require ALL 'must' keywords present and NO 'must_not' keyword, optionally disambiguating by 'year'. Laws cited in gold but ABSENT from the corpus (e.g. Bộ luật Dân sự 2005 = 33/2005/QH11) are intentionally left unmapped — they cannot be cited by aid.",
+  "laws": {
+    "91/2015/QH13":       {"name": "Bộ luật Dân sự 2015",            "must": ["dan su"], "must_not": ["to tung"], "year": 2015},
+    "92/2015/QH13":       {"name": "Bộ luật Tố tụng Dân sự 2015",     "must": ["to tung dan su"], "must_not": [], "year": 2015},
+    "100/2015/QH13":      {"name": "Bộ luật Hình sự 2015",           "must": ["hinh su"], "must_not": ["to tung"], "year": 2015},
+    "93/2015/QH13":       {"name": "Luật Tố tụng Hành chính 2015",    "must": ["to tung hanh chinh"], "must_not": [], "year": 2015},
+    "45/2013/QH13":       {"name": "Luật Đất đai 2013",              "must": ["dat dai"], "must_not": [], "year": 2013},
+    "52/2014/QH13":       {"name": "Luật Hôn nhân và Gia đình 2014",  "must": ["hon nhan"], "must_not": [], "year": 2014},
+    "36/2005/QH11":       {"name": "Luật Thương mại 2005",           "must": ["thuong mai"], "must_not": [], "year": 2005},
+    "50/2014/QH13":       {"name": "Luật Xây dựng 2014",             "must": ["xay dung"], "must_not": ["hop dong", "nghi dinh"], "year": 2014},
+    "53/2014/QH13":       {"name": "Luật Công chứng 2014",           "must": ["cong chung"], "must_not": [], "year": 2014},
+    "26/2008/QH12":       {"name": "Luật Thi hành án Dân sự 2008",    "must": ["thi hanh an"], "must_not": [], "year": 2008},
+    "47/2010/QH12":       {"name": "Luật Các tổ chức tín dụng 2010",  "must": ["to chuc tin dung"], "must_not": [], "year": 2010},
+    "46/2010/QH12":       {"name": "Luật Ngân hàng Nhà nước 2010",    "must": ["ngan hang nha nuoc"], "must_not": [], "year": 2010},
+    "66/2014/QH13":       {"name": "Luật Kinh doanh Bất động sản 2014","must": ["kinh doanh bat dong san"], "must_not": [], "year": 2014},
+    "59/2020/QH14":       {"name": "Luật Doanh nghiệp 2020",         "must": ["doanh nghiep"], "must_not": [], "year": 2020},
+    "02/2011/QH13":       {"name": "Luật Khiếu nại 2011",            "must": ["khieu nai"], "must_not": [], "year": 2011},
+    "60/2014/QH13":       {"name": "Luật Hộ tịch 2014",              "must": ["ho tich"], "must_not": [], "year": 2014},
+    "52/2010/QH12":       {"name": "Luật Nuôi con nuôi 2010",        "must": ["nuoi con nuoi"], "must_not": [], "year": 2010},
+    "11/2017/QH14":       {"name": "Luật Trợ giúp pháp lý 2017",      "must": ["tro giup phap ly"], "must_not": [], "year": 2017},
+    "326/2016/UBTVQH14":  {"name": "Nghị quyết 326/2016 về án phí, lệ phí Tòa án", "must_any": ["an phi", "le phi toa an", "326/2016", "nghi quyet 326", "quyet so 326", " 326 "], "must": [], "must_not": [], "year": 2016},
+    "24/2012/NĐ-CP":      {"name": "Nghị định 24/2012 về kinh doanh vàng", "must_any": ["kinh doanh vang", "24/2012"], "must": [], "must_not": [], "year": 2012},
+    "43/2014/NĐ-CP":      {"name": "Nghị định 43/2014 hướng dẫn Luật Đất đai", "must_any": ["43/2014"], "must": [], "must_not": [], "year": 2014},
+    "37/2015/NĐ-CP":      {"name": "Nghị định 37/2015 về hợp đồng xây dựng", "must_any": ["37/2015", "hop dong xay dung"], "must": [], "must_not": [], "year": 2015},
+    "19/2011/NĐ-CP":      {"name": "Nghị định 19/2011 hướng dẫn Luật Nuôi con nuôi", "must_any": ["19/2011"], "must": [], "must_not": [], "year": 2011},
+    "39/2016/TT-NHNN":    {"name": "Thông tư 39/2016/TT-NHNN về hoạt động cho vay", "must_any": ["39/2016", "hoat dong cho vay"], "must": [], "must_not": [], "year": 2016},
+    "39/2009/QH12":       {"name": "Luật 39/2009/QH12", "must_any": ["39/2009"], "must": [], "must_not": [], "year": 2009}
+  }
+}

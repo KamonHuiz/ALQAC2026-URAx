@@ -1,0 +1,35 @@
+# === Secrets (NEVER commit the ALQAC token) ===
+token.md
+token.txt
+*.secret
+secrets*
+.env
+configs/*.local.yaml
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# === Runtime outputs / caches (produced on Drive, not tracked) ===
+outputs/
+runs/
+cache/
+*.faiss
+*.npy
+*.pkl
+wandb/
+
+# === Models / large downloads ===
+models/
+*.gguf
+*.safetensors
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# smoke / local
+_local_out/
