@@ -229,9 +229,15 @@ class DataManager:
         else:
             path = self._autodetect_private_test()
         if not path or not Path(path).exists():
-            LOG.warning("No private test file found; falling back to PUBLIC split. "
-                        "Place the 60-case JSON in <drive_root>/input/ or set data.private_test_file.")
-            return list(self.public_cases)
+            drive_root = self.cfg.run.drive_root
+            raise FileNotFoundError(
+                "PRIVATE test file not found — refusing to silently run the PUBLIC split "
+                "under target_split='private' (that would waste time/API on the wrong data).\n"
+                f"  Fix: upload the 60-case file (items with a 'case_query' field) to\n"
+                f"       {drive_root}/input/ALQAC_private_test.json\n"
+                "  or set data.private_test_file to its path.\n"
+                "  To validate on the labelled public set instead, run with --split public --no-api."
+            )
         raw = read_json(path)
         cases = [Case.from_raw(x) for x in raw]
         LOG.info("Loaded private test from %s (%d cases)", path, len(cases))
