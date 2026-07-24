@@ -39,8 +39,9 @@ class LLMEngine:
             self._guided_cls = GuidedDecodingParams
         except Exception:
             LOG.warning("vLLM GuidedDecodingParams unavailable; using free decoding + parsing")
+        self._log_gpu()
         LOG.info("Loading vLLM model %s ...", self.name)
-        self.llm = LLM(
+        kwargs = dict(
             model=self.name,
             dtype=m.dtype,
             max_model_len=int(m.max_model_len),
@@ -48,8 +49,30 @@ class LLMEngine:
             tensor_parallel_size=int(m.tensor_parallel_size),
             trust_remote_code=True,
             enforce_eager=False,
+            # A100/L4 throughput: reuse shared system/precedent prefixes across the batch,
+            # and allow a large continuous batch (we feed all cases at once).
+            enable_prefix_caching=bool(getattr(m, "enable_prefix_caching", True)),
+            max_num_seqs=int(getattr(m, "max_num_seqs", 128)),
+            swap_space=int(getattr(m, "swap_space", 4)),
         )
+        try:
+            self.llm = LLM(**kwargs)
+        except TypeError as e:   # older/newer vLLM may not accept a kwarg -> drop the extras
+            LOG.warning("vLLM rejected a kwarg (%s); retrying with core args only", e)
+            for k in ("enable_prefix_caching", "max_num_seqs", "swap_space"):
+                kwargs.pop(k, None)
+            self.llm = LLM(**kwargs)
         self.tokenizer = self.llm.get_tokenizer()
+
+    @staticmethod
+    def _log_gpu():
+        try:
+            import torch
+            if torch.cuda.is_available():
+                p = torch.cuda.get_device_properties(0)
+                LOG.info("GPU: %s | %.0f GB VRAM", p.name, p.total_memory / 1e9)
+        except Exception:
+            pass
 
     def _init_hf(self, m):
         import torch

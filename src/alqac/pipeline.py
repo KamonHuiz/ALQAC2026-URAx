@@ -61,11 +61,16 @@ class Pipeline:
         self.llm = LLMEngine(self.cfg)
         self.embedder = Embedder(self.cfg)
         self.precedents = PrecedentBank(self.cfg, self.embedder, self.data.public_cases)
-        # law indices over merged corpus articles (truncate text for speed)
+        # law indices over merged corpus articles (truncate text for speed).
+        # Embeddings are cached on Drive (corpus is static) -> instant after a restart.
         arts = self.data.corpus.articles
         texts = [a["text"][:1000] for a in arts]
-        LOG.info("Embedding %d corpus articles for law retrieval ...", len(texts))
-        self.dense = DenseIndex(self.embedder, texts, arts)
+        from hashlib import md5
+        sig = md5(("|".join([self.cfg.embedder.name]
+                            + [f"{a['law_id']}:{a['aid']}" for a in arts])).encode()).hexdigest()[:10]
+        cache_path = str(Path(self.cfg.run.drive_root) / "_emb_cache" / f"corpus_{sig}.npy")
+        LOG.info("Building law index over %d corpus articles (cache: %s)", len(texts), cache_path)
+        self.dense = DenseIndex(self.embedder, texts, arts, cache_path=cache_path)
         self.bm25 = BM25Index(texts, arts)
         self.understander = CaseUnderstander(self.cfg, self.llm)
         self.predictor = OutcomePredictor(self.cfg, self.llm, self.precedents)

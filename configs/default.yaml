@@ -35,8 +35,14 @@ model:
   name: "Qwen/Qwen3-8B"
   backend: "vllm"         # "vllm" (fast, default) | "hf" (transformers fallback)
   dtype: "bfloat16"
+  # Tuned for a Colab A100 (40GB VRAM / ~90GB RAM). Qwen3-8B bf16 ≈ 16GB weights, so 0.90
+  # util leaves a large KV cache -> all 60 cases batch in one pass. On an L4 (24GB) drop
+  # gpu_memory_utilization to ~0.80 and max_model_len to 12288 if you hit OOM.
   max_model_len: 16384
-  gpu_memory_utilization: 0.90
+  gpu_memory_utilization: 0.92
+  max_num_seqs: 192        # large continuous batch (GPU is idle anyway during API waits)
+  enable_prefix_caching: true   # reuse shared system/precedent prefixes across the batch
+  swap_space: 4
   enable_thinking: true    # Qwen3 chain-of-thought <think> mode for reasoning stages
   tensor_parallel_size: 1
   # sampling

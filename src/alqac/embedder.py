@@ -6,6 +6,7 @@ plain normalised matrices and do exact cosine top-k with numpy — no FAISS serv
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -51,11 +52,42 @@ class Embedder:
 
 
 class DenseIndex:
-    """Exact cosine index over a fixed set of items."""
-    def __init__(self, embedder: Embedder, texts: list[str], payloads: list):
+    """Exact cosine index over a fixed set of items.
+
+    If `cache_path` is given, the (normalised) embedding matrix is persisted there and
+    reused on the next run — the corpus is static, so this turns a ~1-2 min re-embed into
+    an instant load after a Colab restart.
+    """
+    def __init__(self, embedder: Embedder, texts: list[str], payloads: list,
+                 cache_path: Optional[str] = None):
         self.embedder = embedder
         self.payloads = payloads
-        self.matrix = embedder.encode(texts) if texts else np.zeros((0, 1024), np.float32)
+        self.matrix = self._build(texts, cache_path)
+
+    def _build(self, texts: list[str], cache_path: Optional[str]) -> np.ndarray:
+        if not texts:
+            return np.zeros((0, 1024), np.float32)
+        if cache_path:
+            p = Path(cache_path)
+            if p.exists():
+                try:
+                    m = np.load(p).astype(np.float32)
+                    if m.shape[0] == len(texts):
+                        LOG.info("Loaded cached embeddings %s %s", p.name, tuple(m.shape))
+                        return m
+                    LOG.warning("Cached embeddings %s stale (%d != %d) — recomputing",
+                                p.name, m.shape[0], len(texts))
+                except Exception as e:
+                    LOG.warning("Failed to load embedding cache (%s) — recomputing", e)
+            m = self.embedder.encode(texts)
+            try:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                np.save(p, m)
+                LOG.info("Cached embeddings -> %s %s", p, tuple(m.shape))
+            except Exception as e:
+                LOG.warning("Could not write embedding cache (%s)", e)
+            return m
+        return self.embedder.encode(texts)
 
     def search(self, query: str, top_k: int = 10) -> list[tuple[float, object]]:
         if self.matrix.shape[0] == 0:
