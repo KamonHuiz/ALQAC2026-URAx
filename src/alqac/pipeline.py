@@ -44,12 +44,17 @@ class Pipeline:
         self.data = DataManager(cfg)
         self.cases = self.data.target_cases
         self.use_api = bool(cfg.retrieval.use_api)
+        self.chunk_size = int(cfg.get("exec.chunk_size", 12))
         # components filled by setup_models()
         self.llm = self.embedder = None
 
     # ------------------------------------------------------------------ #
     def _ckpt(self, name: str):
         return self.run_dir / name
+
+    def _chunks(self, seq):
+        for i in range(0, len(seq), self.chunk_size):
+            yield seq[i:i + self.chunk_size]
 
     def _load_ckpt(self, name: str, force: bool):
         p = self._ckpt(name)
@@ -63,9 +68,15 @@ class Pipeline:
         self.llm = LLMEngine(self.cfg)
         self.embedder = Embedder(self.cfg)
         self.precedents = PrecedentBank(self.cfg, self.embedder, self.data.public_cases)
-        # law indices over merged corpus articles (truncate text for speed).
-        # Embeddings are cached on Drive (corpus is static) -> instant after a restart.
+        # law indices over the candidate corpus (truncate text for speed).
+        # Embeddings are cached on Drive; restricting the pool changes the signature so a
+        # fresh .npy is built automatically for the new corpus.
         arts = self.data.corpus.articles
+        if self.cfg.get("law.candidate_corpus", "split") == "split":
+            ids = self.data.retrieval_law_ids
+            arts = [a for a in arts if a["law_id"] in ids]
+            LOG.info("Law candidate pool = split corpus: %d laws, %d articles (was %d)",
+                     len(ids), len(arts), len(self.data.corpus.articles))
         texts = [a["text"][:1000] for a in arts]
         from hashlib import md5
         sig = md5(("|".join([self.cfg.embedder.name]
@@ -123,50 +134,71 @@ class Pipeline:
         return caches
 
     # ------------------------------------------------------------------ #
-    # Phase 3 — understanding
+    # Phase 3 — understanding  (chunked + checkpointed + resumable)
     # ------------------------------------------------------------------ #
     def understand(self, caches: dict, force=False) -> list[dict]:
-        cached = self._load_ckpt("understanding.json", force)
-        if cached is not None:
-            return cached
+        ckpt = self._ckpt("understanding.json")
+        done: dict[str, dict] = {}
+        if not force and ckpt.exists():
+            prev = read_json(ckpt)
+            done = {r["case_id"]: r for r in prev if isinstance(r, dict) and "case_id" in r}
         max_chars = int(self.cfg.understanding.max_context_chars)
-        evid = []
-        for c in self.cases:
-            cache = caches.get(c.case_id, {})
-            if cache.get("chunks"):
-                evid.append(evidence_from_chunks(cache["chunks"], max_chars))
-            else:
-                evid.append((cache.get("offline_text") or c.case_query)[:max_chars])
-        recs = self.understander.run(self.cases, evid)
-        write_json(recs, self._ckpt("understanding.json"))
-        return recs
+        todo = [c for c in self.cases if c.case_id not in done]
+        if todo:
+            LOG.info("[understand] %d/%d cases to process", len(todo), len(self.cases))
+            for chunk in self._chunks(todo):
+                evid = []
+                for c in chunk:
+                    cache = caches.get(c.case_id, {})
+                    if cache.get("chunks"):
+                        evid.append(evidence_from_chunks(cache["chunks"], max_chars))
+                    else:
+                        evid.append((cache.get("offline_text") or c.case_query)[:max_chars])
+                for rec in self.understander.run(chunk, evid):
+                    done[rec["case_id"]] = rec
+                write_json([done[c.case_id] for c in self.cases if c.case_id in done], ckpt)
+                LOG.info("[understand] %d/%d done", len(done), len(self.cases))
+        return [done[c.case_id] for c in self.cases]
 
     # ------------------------------------------------------------------ #
-    # Phase 4 — outcome
+    # Phase 4 — outcome  (chunked + checkpointed + resumable)
     # ------------------------------------------------------------------ #
     def predict(self, recs: list[dict], force=False) -> dict:
-        cached = self._load_ckpt("predictions.json", force)
-        if cached is not None:
-            return cached
-        summaries = [self.understander.summary_text(r) for r in recs]
+        ckpt = self._ckpt("predictions.json")
+        done: dict = {} if force or not ckpt.exists() else read_json(ckpt)
+        rec_by_id = {r["case_id"]: r for r in recs}
+        summ_by_id = {r["case_id"]: self.understander.summary_text(r) for r in recs}
         exclude_self = (self.cfg.run.target_split == "public")
-        preds = self.predictor.predict(self.cases, summaries, recs, exclude_self=exclude_self)
-        out = {p["case_id"]: p for p in preds}
-        write_json(out, self._ckpt("predictions.json"))
-        return out
+        todo = [c for c in self.cases if c.case_id not in done]
+        if todo:
+            LOG.info("[predict] %d/%d cases to process", len(todo), len(self.cases))
+            for chunk in self._chunks(todo):
+                summaries = [summ_by_id[c.case_id] for c in chunk]
+                crecs = [rec_by_id[c.case_id] for c in chunk]
+                for p in self.predictor.predict(chunk, summaries, crecs, exclude_self=exclude_self):
+                    done[p["case_id"]] = p
+                write_json(done, ckpt)
+                LOG.info("[predict] %d/%d done", len(done), len(self.cases))
+        return done
 
     # ------------------------------------------------------------------ #
-    # Phase 5 — law retrieval
+    # Phase 5 — law retrieval  (chunked + checkpointed + resumable)
     # ------------------------------------------------------------------ #
     def retrieve_law(self, recs: list[dict], caches: dict, force=False) -> dict:
-        cached = self._load_ckpt("law_evidence.json", force)
-        if cached is not None:
-            return cached
-        chunks_list = [caches.get(c.case_id, {}).get("chunks", {}) for c in self.cases]
-        law = self.law.retrieve(self.cases, recs, chunks_list)
-        out = {c.case_id: le for c, le in zip(self.cases, law)}
-        write_json(out, self._ckpt("law_evidence.json"))
-        return out
+        ckpt = self._ckpt("law_evidence.json")
+        done: dict = {} if force or not ckpt.exists() else read_json(ckpt)
+        rec_by_id = {r["case_id"]: r for r in recs}
+        todo = [c for c in self.cases if c.case_id not in done]
+        if todo:
+            LOG.info("[law] %d/%d cases to process", len(todo), len(self.cases))
+            for chunk in self._chunks(todo):
+                crecs = [rec_by_id[c.case_id] for c in chunk]
+                chunks_list = [caches.get(c.case_id, {}).get("chunks", {}) for c in chunk]
+                for c, le in zip(chunk, self.law.retrieve(chunk, crecs, chunks_list)):
+                    done[c.case_id] = le
+                write_json(done, ckpt)
+                LOG.info("[law] %d/%d done", len(done), len(self.cases))
+        return done
 
     # ------------------------------------------------------------------ #
     def run(self, force_stages: set | None = None) -> dict:

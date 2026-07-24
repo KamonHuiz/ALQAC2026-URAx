@@ -93,6 +93,13 @@ outcome:
 # ---- Stage 4: law provision retrieval ----
 law:
   enabled: true
+  # Candidate pool for statute retrieval:
+  #   "split"  -> ONLY the target split's own corpus (private-extracted for private). This
+  #               is the correct universe: a law absent from the private-extracted corpus
+  #               is never gold, so restricting removes false positives (e.g. the Real
+  #               Estate Business Law 66/2014 leaking into individual land-transfer cases).
+  #   "merged" -> the union of public + private corpora (25 laws).
+  candidate_corpus: "split"
   use_citation_extraction: true     # regex "Điều N ... <luật>" from retrieved segments
   use_semantic_retrieval: true      # bge-m3 + BM25 hybrid over corpus articles
   semantic_top_k: 12
@@ -111,4 +118,6 @@ law:
 exec:
   checkpoint_every_case: true       # write per-case state to Drive (resumable)
   batch_llm: true                   # batch prompts across cases for throughput
+  chunk_size: 12                    # cases per checkpointed chunk in understand/predict/law
+                                    #   (smaller = more frequent saves + progress logs)
   log_level: "INFO"

@@ -176,6 +176,11 @@ class DataManager:
         law_meta = read_json(cfg.resolve_path(d.law_name_map_file))["laws"]
         pub_corpus = read_json(cfg.resolve_path(d.public_corpus_file))
         priv_corpus = read_json(cfg.resolve_path(d.private_corpus_file))
+        # Track each source corpus's law set. Statute retrieval restricts its candidate
+        # pool to the target split's own corpus (see retrieval_law_ids): a law absent from
+        # the private-extracted corpus can never be gold for a private case.
+        self.pub_law_ids = {law["law_id"] for law in pub_corpus}
+        self.priv_law_ids = {law["law_id"] for law in priv_corpus}
         merged = self._merge_corpora(pub_corpus, priv_corpus)
         self.corpus = LawCorpus(merged, law_meta)
 
@@ -191,6 +196,11 @@ class DataManager:
         # --- target split (what we produce a submission for) ---
         self.target_cases: list[Case] = self._load_target_split()
         LOG.info("Target split '%s': %d cases", cfg.run.target_split, len(self.target_cases))
+
+    @property
+    def retrieval_law_ids(self) -> set:
+        """Law-id universe for statute retrieval: the target split's own corpus."""
+        return self.priv_law_ids if self.cfg.run.target_split == "private" else self.pub_law_ids
 
     # ------------------------------------------------------------------ #
     @staticmethod
