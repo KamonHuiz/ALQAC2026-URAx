@@ -6,6 +6,9 @@ secrets*
 .env
 configs/*.local.yaml
 
+# === Real private test set — do NOT push to a public repo (put it in Drive input/) ===
+data/ALQAC_private_test.json
+
 # === Python ===
 __pycache__/
 *.py[cod]

@@ -82,13 +82,14 @@ docs/METHOD.md              extended method notes for the paper
 - `outcome.self_consistency_samples`, `use_debate`, `use_vks_fusion`, `vks_prior_weight`.
 - `law.max_articles`, `use_citation_extraction`, `use_procedural_priors`.
 
-## Data & privacy note
+## ⚠️ Data & privacy note (IMPORTANT)
 
-Bundled in `data/` are the **labelled public test set** and the **law corpora** (public +
-private-extracted, merged) so the repo runs out-of-the-box. The 60 private **case queries**
-are **not** bundled. If your GitHub repo is public and the organisers' terms restrict
-redistributing provided data, keep this repo **private**, or delete `data/*.json` and place
-those files in `ALQAC_RESULT/input/` on Drive instead.
+`data/` bundles the labelled public set, the merged law corpora, **and the 60-case private
+test** (`ALQAC_private_test.json`) so the repo runs out-of-the-box. The private test set is
+the **actual competition questions** — if this GitHub repo is **public**, that data is
+exposed to other teams and may violate the organisers' terms. **Keep this repo PRIVATE**, or
+remove `data/ALQAC_private_test.json` (and the corpora) from git and place them in
+`ALQAC_RESULT/input/` on Drive instead (the pipeline auto-detects the test file there).
 
 ## Providing the private test cases
 

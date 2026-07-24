@@ -219,11 +219,16 @@ class DataManager:
         split = self.cfg.run.target_split
         if split == "public":
             return list(self.public_cases)
-        # private -> explicit path, else auto-detect in <drive_root>/input/
+        # private -> configured path (resolved against repo root), else auto-detect in
+        # <drive_root>/input/, else fall back to the public split.
+        from pathlib import Path
         path = self.cfg.get("data.private_test_file")
-        if not path:
+        if path:
+            rp = self.cfg.resolve_path(path)
+            path = rp if Path(rp).exists() else self._autodetect_private_test()
+        else:
             path = self._autodetect_private_test()
-        if not path:
+        if not path or not Path(path).exists():
             LOG.warning("No private test file found; falling back to PUBLIC split. "
                         "Place the 60-case JSON in <drive_root>/input/ or set data.private_test_file.")
             return list(self.public_cases)

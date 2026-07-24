@@ -23,10 +23,10 @@ data:
   private_corpus_file: "data/private_test_60_cases_extracted_corpus.json"
   law_name_map_file: "data/law_name_map.json"
   query_bank_file: "data/query_bank.json"
-  # The 60 private CASES (case_id, case_query, A/B_description). NOT bundled — you download it
-  # from the organisers' "Private Test Folder" into Drive. Auto-detected if left null:
-  # the pipeline scans <drive_root>/input/ for a *.json whose items contain 'case_query'.
-  private_test_file: null
+  # The 60 private CASES (each has case_id + case_query). Bundled in the repo. If this path
+  # is missing at runtime, the pipeline auto-detects a *.json with a 'case_query' field in
+  # <drive_root>/input/, else falls back to the public split.
+  private_test_file: "data/ALQAC_private_test.json"
 
 model:
   # Any open-weight instruct model < 10B params. Qwen3-8B is the tuned default.
