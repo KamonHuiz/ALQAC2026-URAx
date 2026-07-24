@@ -53,8 +53,11 @@ def build_overrides(a) -> dict:
         ov["run"]["drive_root"] = a.drive_root
     if a.model:
         ov["model"]["name"] = a.model
-    if a.backend:
-        ov["model"]["backend"] = a.backend
+    # backend precedence: --backend flag > ALQAC_BACKEND env (set by run_colab.sh when it
+    # detects vLLM is unusable) > config default
+    backend = a.backend or os.environ.get("ALQAC_BACKEND")
+    if backend:
+        ov["model"]["backend"] = backend
     if a.no_api:
         ov["retrieval"]["use_api"] = False
     return ov

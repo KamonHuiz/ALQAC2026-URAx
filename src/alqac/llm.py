@@ -26,7 +26,16 @@ class LLMEngine:
         self.default_max_new = int(m.max_new_tokens)
         self._guided_cls = None
         if self.backend == "vllm":
-            self._init_vllm(m)
+            try:
+                self._init_vllm(m)
+            except Exception as e:
+                # e.g. vLLM built for a different CUDA (libcudart.so.13 not found on a
+                # cu12.x Colab). Fall back to the transformers backend, which uses the
+                # already-working torch install.
+                LOG.warning("vLLM backend unavailable (%s: %s). Falling back to HF "
+                            "transformers backend.", type(e).__name__, str(e)[:200])
+                self.backend = "hf"
+                self._init_hf(m)
         else:
             self._init_hf(m)
 
@@ -151,22 +160,26 @@ class LLMEngine:
         outs: list[list[str]] = []
         bs = 8
         do_sample = temperature > 0
+        # HF greedy decoding requires num_return_sequences == 1; replicate afterwards.
+        nrs = n if do_sample else 1
         for i in range(0, len(prompts), bs):
             chunk = prompts[i:i + bs]
             enc = self.tokenizer(chunk, return_tensors="pt", padding=True,
                                  truncation=True, max_length=int(self.cfg.max_model_len)
                                  ).to(self.model.device)
+            gen_kw = dict(max_new_tokens=max_tokens, do_sample=do_sample,
+                          num_return_sequences=nrs,
+                          pad_token_id=self.tokenizer.pad_token_id)
+            if do_sample:
+                gen_kw.update(temperature=max(temperature, 1e-5), top_p=top_p)
             with torch.no_grad():
-                gen = self.model.generate(
-                    **enc, max_new_tokens=max_tokens, do_sample=do_sample,
-                    temperature=max(temperature, 1e-5), top_p=top_p,
-                    num_return_sequences=n,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                )
+                gen = self.model.generate(**enc, **gen_kw)
             gen = gen[:, enc["input_ids"].shape[1]:]
             texts = self.tokenizer.batch_decode(gen, skip_special_tokens=True)
             for j in range(len(chunk)):
-                comps = texts[j * n:(j + 1) * n]
+                comps = texts[j * nrs:(j + 1) * nrs]
+                if not do_sample and n > 1:      # greedy -> duplicate to n
+                    comps = comps * n
                 if choices is not None:
                     comps = [self._snap_choice(c, choices) for c in comps]
                 outs.append(comps)

@@ -35,7 +35,9 @@ from .utils import LOG, ensure_dir, extract_json, read_json, timestamp, write_js
 class Pipeline:
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        run_id = cfg.get("run.run_id") or timestamp()
+        # Stable per-split run_id by default so ALL checkpoints (and thus a 2-3h retrieval)
+        # resume across sessions instead of starting a fresh timestamped dir each time.
+        run_id = cfg.get("run.run_id") or f"run_{cfg.run.target_split}"
         self.run_dir = ensure_dir(Path(cfg.run.drive_root) / run_id)
         LOG.info("Run dir: %s", self.run_dir)
         write_json(cfg.to_dict(), self.run_dir / "config_used.json")
@@ -108,7 +110,11 @@ class Pipeline:
                                      "offline_text": c.case_fact or c.case_query}
             return caches
         token = get_token()
-        api = RetrievalAPI(self.cfg, token, str(self.run_dir))
+        # IMPORTANT: the API cache lives in a STABLE, split-scoped location shared by every
+        # run/experiment — never under a timestamped dir — so we never re-spend calls (c_i).
+        cache_dir = ensure_dir(Path(self.cfg.run.drive_root) / "case_cache"
+                               / self.cfg.run.target_split)
+        api = RetrievalAPI(self.cfg, token, str(cache_dir))
         agent = RetrievalAgent(self.cfg, api, self.data)
         for i, c in enumerate(self.cases, 1):
             LOG.info("[retrieve] (%d/%d) %s", i, len(self.cases), c.case_id)

@@ -20,7 +20,7 @@ from .utils import LOG, ensure_dir, read_json, write_json
 
 
 class RetrievalAPI:
-    def __init__(self, cfg, token: str, run_dir: str):
+    def __init__(self, cfg, token: str, cache_dir: str):
         r = cfg.retrieval
         self.url = r.api_url
         self.wait = float(r.wait_seconds)
@@ -28,8 +28,10 @@ class RetrievalAPI:
         self.timeout = int(r.timeout)
         self.headers = {"X-API-Key": token, "Content-Type": "application/json"}
 
-        self.cache_dir = ensure_dir(Path(run_dir) / "case_cache")
-        self.log_path = Path(run_dir) / "api_call_log.jsonl"
+        # cache_dir is a stable, split-scoped directory (see pipeline.retrieve); the
+        # append-only call log lives alongside the cache it corresponds to.
+        self.cache_dir = ensure_dir(Path(cache_dir))
+        self.log_path = self.cache_dir / "api_call_log.jsonl"
         self._last_call = 0.0
         self.total_calls = 0
 

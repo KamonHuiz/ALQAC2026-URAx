@@ -7,21 +7,38 @@
 # ============================================================
 set -e
 
-echo ">>> [1/3] Installing dependencies (this takes a few minutes on first run) ..."
+echo ">>> [1/4] Installing core dependencies (HF backend works with Colab's torch) ..."
 pip install -q -U pip
-# vLLM pulls a compatible torch; install it first, then the rest.
-pip install -q "vllm>=0.6.3"
-pip install -q -r requirements.txt
+pip install -q -U "transformers>=4.51.0" accelerate \
+    FlagEmbedding sentence-transformers faiss-cpu rank-bm25 \
+    requests numpy tqdm pyyaml natsort regex orjson
 
-echo ">>> [2/3] Environment:"
+echo ">>> [2/4] Trying to enable vLLM (optional fast path) ..."
+# vLLM is much faster but its wheel must match the runtime CUDA. On mismatch we simply
+# use the transformers backend instead — the pipeline auto-falls-back either way.
+export ALQAC_BACKEND=""
+if python -c "import vllm" 2>/dev/null; then
+    echo "    vLLM already importable."
+elif pip install -q "vllm>=0.6.3" 2>/dev/null && python -c "import vllm" 2>/dev/null; then
+    echo "    vLLM installed OK."
+else
+    echo "    vLLM not usable in this runtime (CUDA/torch mismatch) -> forcing HF backend."
+    export ALQAC_BACKEND=hf
+fi
+
+echo ">>> [3/4] Environment:"
 python - <<'PY'
-import torch, os
+import torch
 print("  torch:", torch.__version__, "| CUDA:", torch.cuda.is_available())
 if torch.cuda.is_available():
-    print("  GPU:", torch.cuda.get_device_name(0),
-          f"| {torch.cuda.get_device_properties(0).total_memory/1e9:.0f} GB")
+    p = torch.cuda.get_device_properties(0)
+    print(f"  GPU: {p.name} | {p.total_memory/1e9:.0f} GB")
+try:
+    import vllm; print("  vLLM:", vllm.__version__)
+except Exception as e:
+    print("  vLLM: unavailable ->", type(e).__name__)
 PY
 
-echo ">>> [3/3] Running pipeline ..."
+echo ">>> [4/4] Running pipeline (ALQAC_BACKEND='${ALQAC_BACKEND}') ..."
 python scripts/run_pipeline.py "$@"
-echo ">>> Done. Check your Drive: ALQAC_RESULT/<run_id>/[submission] <group>.json"
+echo ">>> Done. Check your Drive: ALQAC_RESULT/run_<split>/[submission] <group>.json"

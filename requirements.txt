@@ -6,9 +6,12 @@
 #  Versions are pinned loosely (>=) so Colab's pre-installed torch is reused.
 # ============================================================
 
-# --- Inference engine (fast, batched) ---
-vllm>=0.6.3               # serves Qwen3-8B with guided/JSON decoding & prefix caching
-transformers>=4.51.0      # fallback backend + tokenizers (Qwen3 needs >=4.51)
+# --- Inference engine ---
+# vLLM is the fast path but its wheel MUST match the runtime CUDA. On Colab it is
+# installed separately by scripts/run_colab.sh, which verifies the import and otherwise
+# forces the transformers backend. Uncomment only if your CUDA matches:
+#   vllm>=0.6.3            # serves Qwen3-8B with guided/JSON decoding & prefix caching
+transformers>=4.51.0      # HF backend + tokenizers (Qwen3 needs >=4.51); default fallback
 accelerate>=0.34.0
 
 # --- Retrieval / embeddings ---
